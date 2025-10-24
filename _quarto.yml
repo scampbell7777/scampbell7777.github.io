@@ -1,0 +1,18 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "My Blog"
+  navbar:
+    right:
+      - href: index.qmd
+        text: Home
+      - href: posts.qmd
+        text: Posts
+
+format:
+  html:
+    toc: true
+    code-fold: true   # collapsible code blocks
+    theme: cosmo
