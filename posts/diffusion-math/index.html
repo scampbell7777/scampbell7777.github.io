@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.25">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2025-10-23">
+<meta name="description" content="Making sense of the DDPM diffusion loss">
+
+<title>Some notes on diffusion – My Blog</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-adccc5b9a7aa8f12ac48e8369adfcc4c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="../../index.html" class="navbar-brand navbar-brand-logo">
+    </a>
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">My Blog</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../posts.html"> 
+<span class="menu-text">Posts</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#motivation" id="toc-motivation" class="nav-link active" data-scroll-target="#motivation">Motivation</a>
+  <ul class="collapse">
+  <li><a href="#a-very-brief-and-incomplete-history-of-diffusion-modeling" id="toc-a-very-brief-and-incomplete-history-of-diffusion-modeling" class="nav-link" data-scroll-target="#a-very-brief-and-incomplete-history-of-diffusion-modeling">A very brief and incomplete history of diffusion modeling</a></li>
+  </ul></li>
+  <li><a href="#what-is-diffusion-mathematically" id="toc-what-is-diffusion-mathematically" class="nav-link" data-scroll-target="#what-is-diffusion-mathematically">What is diffusion mathematically?</a>
+  <ul class="collapse">
+  <li><a href="#the-diffusion-loss" id="toc-the-diffusion-loss" class="nav-link" data-scroll-target="#the-diffusion-loss">The Diffusion Loss</a></li>
+  <li><a href="#the-ddpm-loss" id="toc-the-ddpm-loss" class="nav-link" data-scroll-target="#the-ddpm-loss">The DDPM loss</a></li>
+  </ul></li>
+  <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps">Next steps</a>
+  <ul class="collapse">
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Some notes on diffusion</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">diffusion</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    Making sense of the DDPM diffusion loss
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">October 23, 2025</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>AI was used for research and to generate LaTeX equations</p>
+</div>
+</div>
+<hr>
+<section id="motivation" class="level1">
+<h1>Motivation</h1>
+<p>Many people know diffusion as the magic behind AI models that generate images and videos from text prompts. While diffusion is a powerful modeling paradigm, it can be incredibly daunting to jump into the diffusion literature due to the sheer volume of mathematics in a typical paper. Surprisingly, despite the mathematical complexity behind the derivation of modern diffusion techniques, the core training objective for standard <strong>Denoising Diffusion Probabilistic Models</strong> (DDPM) is simple: just predict the noise. This simplicity makes it easy to ignore why the objective takes that form.</p>
+<p>In this post, I’ll walk through a basic derivation of the loss used for DDPM which was the first diffusion formulation that “worked” and is the basis for most subsequent diffusion related work. I skip the most egregiously tedious bits of the algebra since it adds little to our understanding. Much of the math can later be re-used for other forms of diffusion like discrete diffusion.</p>
+<hr>
+<section id="a-very-brief-and-incomplete-history-of-diffusion-modeling" class="level3">
+<h3 class="anchored" data-anchor-id="a-very-brief-and-incomplete-history-of-diffusion-modeling">A very brief and incomplete history of diffusion modeling</h3>
+<ol type="1">
+<li>Diffusion models originated with Sohl-Dickstein et al.&nbsp;(2015) who introduced the diffusion framework but the approach was computationally expensive and didn’t produce competitive results when compared with the predominant generative modeling paradigm of Generative Adversarial Networks (GANs).</li>
+<li>Ho et al.’s DDPM paper (2020) demonstrated significantly better image generation; however, sampling required thousands of sequential steps making it very slow. The results were still not competitive with GANs.</li>
+<li>Song et al.’s DDIM paper (2021) showed you could sample from DDPM models with far fewer steps which made them much faster and more practical.</li>
+<li>Stable Diffusion and DALLE-2 were released (~2022) and were better than GANs.</li>
+</ol>
+<p>Since then diffusion (and variants) has become the predominant generative modeling approach for many domains which makes it worth understanding in some detail.</p>
+</section>
+</section>
+<section id="what-is-diffusion-mathematically" class="level1">
+<h1>What is diffusion mathematically?</h1>
+<p>Diffusion defines an iterative process that takes data to noise. This process is Markov in this post (though it does not need to be as is the case in the DDIM paper) and is known as the <strong>forward (noising) process</strong> which is denoted as <span class="math inline">\(q(x_t \mid x_{t-1})\)</span>. Starting with clean data <span class="math inline">\(x_0\)</span>, we apply this process <span class="math inline">\(T\)</span> times (or an infinite number of times in the continuous case) to end up with a sequence of progressively noiser data <span class="math inline">\(x_0, \dots, x_T\)</span>. If <span class="math inline">\(T\)</span> is large, we will end up with pure noise (i.e.&nbsp;<span class="math inline">\(x_T\)</span> is noise).</p>
+<figure style="width: 500px; margin-left: auto; margin-right: auto; text-align: center;" class="figure">
+<img src="noising.png" alt="This image was generated with diffusion!" width="500" class="figure-img">
+<figcaption>
+<b>Figure 1:</b> If our <span class="math inline">\(q\)</span> adds Gaussian noise, we might end up with a sequence of <span class="math inline">\(x_0, \dots, x_4\)</span> that looks like this. We would continue this sequence until we end up with pure noise.
+</figcaption>
+</figure>
+<p>We then train a model, <span class="math inline">\(p_\theta(x_{t-1} \mid x_{t})\)</span> that reverses this process (i.e.&nbsp;predicts a slightly less noisy version of its input). We sample (e.g.&nbsp;generate images) from this model (roughly speaking) by starting from pure noise and repeatedly removing what the model thinks is noise.</p>
+<p>Mathematically, the joint distribution (i.e.&nbsp;the probability that we see a particular sequence of noised <span class="math inline">\(x\)</span>’s) is given by:</p>
+<p><span class="math display">\[
+q(x_{1:T} \mid x_0) = \prod_{t=1}^T q(x_t \mid x_{t-1})
+\]</span></p>
+<p>To make this more concrete, for diffusion using the DDPM approach, we define each transition as adding a small amount of Gaussian noise:</p>
+<p><span id="eq-q0"><span class="math display">\[
+q(x_t \mid x_{t-1})
+= \mathcal{N}\!\big(x_t; \sqrt{1 - \beta_t}\,x_{t-1},\, \beta_t I\big)
+\tag{1}\]</span></span></p>
+<p>where <span class="math inline">\(\beta_t \in (0, 1)\)</span> (“the noise schedule”) is how much noise is added for a given step. Initially, at <span class="math inline">\(T=0\)</span> (when <span class="math inline">\(x_t\)</span> is a clean data sample), <span class="math inline">\(\beta_t\)</span> is 0 (i.e no noise) and at the end of the sequence, it is 1 (i.e.&nbsp;all noise). It’s woth noting that if we do a bit of straightforward algebra, we can derive a formula for <span class="math inline">\(q(x_t \mid x_0)\)</span>. <span id="eq-q1"><span class="math display">\[
+q(x_t \mid x_0)
+= \mathcal{N}\!\big(x_t;\, \sqrt{\bar{\alpha}_t}\,x_0,\,(1 - \bar{\alpha}_t) I\big)
+\quad \text{with } \bar{\alpha}_t = \prod_{s=1}^t (1 - \beta_s)
+\tag{2}\]</span></span></p>
+<p>This is useful because it means we can compute the forward process for a given timestep without computing intermediate steps. This is nice if you want a practical training algorithm as we’ll see later.</p>
+<p>Similarly, our model that will learn the reverse Markov chain can be written as:</p>
+<p><span class="math display">\[
+p_\theta(x_{0:T}) = p(x_T)\prod_{t=1}^T p_\theta(x_{t-1} \mid x_t)
+\]</span></p>
+<p>Note that <span class="math inline">\(p(x_T)\)</span> is the noise distribution that we start from when going from noise to data. In the case of DDPM, this is just a standard normal.</p>
+<section id="the-diffusion-loss" class="level3">
+<h3 class="anchored" data-anchor-id="the-diffusion-loss">The Diffusion Loss</h3>
+<p>As is often the case in machine learning, we train by <strong>maximizing the log-likelihood</strong> of the data. Thus we need <span class="math inline">\(\log p_\theta(x_0)\)</span>, which we can obtain by integrating out <span class="math inline">\(x_1, \dots, x_T\)</span>:</p>
+<p><span class="math display">\[
+\log p_\theta(x_0)
+= \log \int p_\theta(x_{0:T}) \, dx_{1:T}
+= \log \int p_\theta(x_T) \prod_{t=1}^T p_\theta(x_{t-1} \mid x_t) \, dx_{1:T}.
+\]</span> This is intractable because <span class="math inline">\(p_\theta(x_0)\)</span> marginalizes over all trajectories (i.e.&nbsp;all sequences of noised <span class="math inline">\(x\)</span>’s). Thus, we we multiply by 1, in the form of the forward (noising) process <span class="math inline">\(q(x_{1:T} \mid x_0)\)</span> to turn this into an expectation:</p>
+<p><span class="math display">\[
+\log p_\theta(x_0)
+= \log \int q(x_{1:T} \mid x_0)
+   \frac{p_\theta(x_{0:T})}{q(x_{1:T} \mid x_0)} \, dx_{1:T}
+= \log \mathbb{E}_{q(x_{1:T} \mid x_0)}\!\left[
+   \frac{p_\theta(x_{0:T})}{q(x_{1:T} \mid x_0)}
+\right].
+\]</span> Optimizing the log of an expectation is not easy to compute and so we use the standard trick of applying Jensen’s inequality (<span class="math inline">\(\log \mathbb{E}_q[f(x)] \ge \mathbb{E}_q[\log f(x)]\)</span>) to get something that is simple to train with: :</p>
+<p><span class="math display">\[
+\log p_\theta(x_0)
+\ge
+\mathbb{E}_{q(x_{1:T} \mid x_0)}\!\left[
+\log p_\theta(x_{0:T})
+- \log q(x_{1:T} \mid x_0)
+\right].
+\]</span></p>
+<p>This gives us what is known as the <strong>Evidence Lower Bound (ELBO)</strong>. Skipping some algebra (use the Markov factorizations of <span class="math inline">\(p_\theta\)</span> and <span class="math inline">\(q\)</span>, regroup, and use Bayes) we end up with:</p>
+<p><span class="math display">\[
+\mathcal{L}_{\text{ELBO}}
+\;=\;
+\mathbb{E}_{q(x_{1:T}\mid x_0)}\Big[
+\underbrace{D_{\mathrm{KL}}\!\big(q(x_T \mid x_0)\,\|\,p(x_T)\big)}_{\text{prior term}}
+\;+\;
+\sum_{t=2}^{T}
+\underbrace{D_{\mathrm{KL}}\!\big(q(x_{t-1}\!\mid x_t,x_0)\,\|\,p_\theta(x_{t-1}\!\mid x_t)\big)}_{\text{denoising terms}}
+\;-\;
+\underbrace{\log p_\theta(x_0 \mid x_1)}_{\text{reconstruction term}}
+\Big].
+\]</span></p>
+<p>Maximizing this lower bound is equivalent to minimizing the negative ELBO which we use for our training loss. This form of the ELBO is NOT specific to any particular form of diffusion. It can be used for discrete or continuous diffusion. Often the only term in this loss that we care about is middle one (denoising terms) because we can (usually) argue that the the first term is 0 and that the last term can be ignored (with exceptions).</p>
+<p>In particular, the <strong>prior term</strong> measures how close <span class="math inline">\(q(x_{1:T} \mid x_0)\)</span> (what distribution do we end up at if we add noise for a long time?) is to <span class="math inline">\(p(x_T)\)</span> (the distibution that we start denoising from). In the case of DDPM (if you choose your noise schedule appropriately), <span class="math inline">\(q(x_{1:T} \mid x_0)\)</span> becomes a standard normal in the limit of large <span class="math inline">\(T\)</span>. So if you choose <span class="math inline">\(p(x_T)\)</span> to also be a standard normal, this term is 0.</p>
+<p>The <strong>reconstruction term</strong> just measures how well the model can reconstruct the clean data from the last denoising step. In the case of large <span class="math inline">\(T\)</span>, <span class="math inline">\(x_1\)</span> should be clean data plus a miniscule amount of noise. Thus, it can be argued that its contribution to the loss is negligible (with caveats).</p>
+<p>The <strong>denoising terms</strong> measure how well the model can remove noise at a given step.</p>
+<p>Now let’s think about what this loss means. At first glance, the expectation <span class="math inline">\(\mathbb{E}_{q(x_{1:T}\mid x_0)}\)</span> looks prohibitively expensive, since it appears to require sampling entire diffusion trajectories for each data point. However, because of the Markov structure of the forward process, each term in the KL summation depends only on a single timestep.</p>
+<p>Specifically, each individual KL term uses the conditional <span class="math inline">\(q(x_{t-1}\!\mid x_t,x_0)\)</span> which is the distribution of the next less noisy state (<span class="math inline">\(x_{t-1}\)</span>) given both the original data <span class="math inline">\(x_0\)</span> and a noisy version <span class="math inline">\(x_t\)</span>. This distribution has a closed form for DDPM. And if we’re designing a novel diffusion process (say for discrete diffusion), we can choose our forward process such that it is tractable. Namely, using the Markov property <span class="math inline">\(q(x_t \mid x_{t-1}, x_0) = q(x_t \mid x_{t-1})\)</span> and Bayes, we get</p>
+<p><span id="eq-bayes-posterior"><span class="math display">\[
+q(x_{t-1} \mid x_t, x_0)
+= \frac{q(x_t \mid x_{t-1})\, q(x_{t-1} \mid x_0)}{q(x_t \mid x_0)}
+\tag{3}\]</span></span></p>
+<p>Thus if we choose our noising distribution such that we can compute <span class="math inline">\(q(x_{t} \mid x_0)\)</span> efficiently, we can compute <span class="math inline">\(q(x_{t-1} \mid x_t, x_0)\)</span> and perhaps learn a model.</p>
+</section>
+<section id="the-ddpm-loss" class="level3">
+<h3 class="anchored" data-anchor-id="the-ddpm-loss">The DDPM loss</h3>
+<p>Fully deriving this requires an enormous amount of rather un-illuminating algebra. So I’ll highlight the basic idea.</p>
+<ol type="1">
+<li>We want <span class="math inline">\(q(x_{t-1} \mid x_t, x_0)\)</span> (<a href="#eq-bayes-posterior" class="quarto-xref">Equation&nbsp;3</a>) which is a product of two Gaussians that we know via <a href="#eq-q0" class="quarto-xref">Equation&nbsp;1</a> and <a href="#eq-q1" class="quarto-xref">Equation&nbsp;2</a>. We can ignore the denominator since it’s just a normalizing factor.</li>
+<li>We write out the product of the PDFs for <span class="math inline">\(q(x_{t-1} \mid x_0)\)</span> and <span class="math inline">\(q(x_t \mid x_{t-1})\)</span> which can both be expressed in terms of <span class="math inline">\(x_{t-1}\)</span>.</li>
+<li>We show that this product is normal with some mean and variance by completing the square.</li>
+<li>Since that we know <a href="#eq-bayes-posterior" class="quarto-xref">Equation&nbsp;3</a> is a Gaussian with some mean and variance, it’s logical to express our <span class="math inline">\(p_\theta\)</span> (the model that we’re learning) as model that predicts the mean of a Gaussian with the same variance found in 3.</li>
+<li>The KL divergence between two normal distributions is proportional to the L2 norm of the difference between their means which we could use as a training loss but in practice does not work very well.</li>
+<li>Instead, we use what is known as the reparameterization trick which lets us write the mean as as a noise term plus the current noised datapoint. When we do this, our loss reduces down to an L2 loss between the noise added to a data point and what the models thinks is the noise added. Thus, we end up with an extremely intuitive loss:</li>
+</ol>
+<p><span class="math display">\[
+\mathcal{L}
+= \mathbb{E}_{x_0,\epsilon,t}
+\big[
+\|\epsilon - \epsilon_\theta(x_t,t)\|^2
+\big].
+\]</span></p>
+<p>Technically, we weight different timesteps differently in the full ELBO so this expectation should have a time dependent weight. However, in practice (and what the DDPM paper found) was that uniform weighting works well.</p>
+<p>Thus, the <strong>training algorithm</strong> boils down to:</p>
+<ol type="1">
+<li>Sample a clean data point <span class="math inline">\(x_0 \sim q(x_0)\)</span>,<br>
+</li>
+<li>Pick a random timestep <span class="math inline">\(t \sim \text{Uniform}\{1,\dots,T\}\)</span>,<br>
+</li>
+<li>Generate a noisy version using the forward process: <span class="math display">\[
+x_t = \sqrt{\bar{\alpha}_t}\,x_0 + \sqrt{1 - \bar{\alpha}_t}\,\epsilon,
+\quad \epsilon \sim \mathcal{N}(0,I),
+\]</span></li>
+<li>Train the model to predict <span class="math inline">\(\epsilon\)</span></li>
+</ol>
+</section>
+</section>
+<section id="next-steps" class="level1">
+<h1>Next steps</h1>
+<p>In the interest of not making this post longer and denser, I’ve skipped a ton of stuff. Further reading could include:</p>
+<ol type="1">
+<li>Rigourously understanding the generation process</li>
+<li>How the noise schedules work</li>
+<li>The connection to stochastic differential equations</li>
+<li>DDIM (Denoising Diffusion Implicit Models) which improves upon DDPM and allows for fewer step sampling</li>
+<li>Classifier free guidance</li>
+<li>Latent diffusion models</li>
+<li>Flow matching</li>
+</ol>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li><p><strong>Sohl-Dickstein, J., et al.&nbsp;(2015).</strong> <strong>Deep Unsupervised Learning using Nonequilibrium Thermodynamics.</strong> <a href="https://arxiv.org/abs/1503.03585">arXiv link</a></p></li>
+<li><p><strong>Ho, J., Jain, A., &amp; Abbeel, P. (2020).</strong> <strong>Denoising Diffusion Probabilistic Models (DDPM).</strong> <a href="https://arxiv.org/abs/2006.11239">arXiv link</a></p></li>
+<li><p><strong>Song, J., Meng, C., &amp; Ermon, S. (2021).</strong> <strong>Denoising Diffusion Implicit Models (DDIM).</strong> <a href="https://arxiv.org/abs/2010.02502">arXiv link</a></p></li>
+<li><p><strong>MIT 6.S184: Generative AI with Stochastic Differential Equations.</strong> <a href="https://diffusion.csail.mit.edu/">course link</a></p></li>
+<li><p><strong>Stanford CS236: Deep Generative Models.</strong> <a href="https://deepgenerativemodels.github.io/">course link</a></p></li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/scampbell7777\.github\.io\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
