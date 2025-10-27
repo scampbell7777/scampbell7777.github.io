@@ -353,10 +353,12 @@ Hoogeboom et al.&nbsp;show that you can derive a training objective very similar
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The title of the <a href="https://arxiv.org/abs/2309.12288">paper</a> that introduced this idea says most of it: <em>The Reversal Curse: LLMs trained on “A is B” fail to learn “B is A”.</em><br>
-From the paper: &gt; “Who is Tom Cruise’s mother? [A: Mary Lee Pfeiffer]”<br>
-&gt; and the reverse “Who is Mary Lee Pfeiffer’s son?”.<br>
-&gt; GPT-4 correctly answers questions like the former 79% of the time, compared to 33% for the latter.</p>
+<p>The title of the <a href="https://arxiv.org/abs/2309.12288">paper</a> that introduced this idea says most of it: <em>The Reversal Curse: LLMs trained on “A is B” fail to learn “B is A”.</em> From the paper:</p>
+<blockquote class="blockquote">
+<p>“Who is Tom Cruise’s mother? [A: Mary Lee Pfeiffer]”<br>
+and the reverse “Who is Mary Lee Pfeiffer’s son?”.<br>
+GPT-4 correctly answers questions like the former 79% of the time, compared to 33% for the latter.</p>
+</blockquote>
 <p>This “curse” may be due to the autoregressive nature of most LLMs. In Nie et al.&nbsp;they show that LLADA breaks this “curse” and has consistent performance on both forward and backward reasoning tasks.</p>
 </div>
 </div>
