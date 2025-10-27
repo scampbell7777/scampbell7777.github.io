@@ -255,8 +255,8 @@ It’s hard (or at least unnatural) to do fill in the blank or editing in the mi
 </div>
 <section id="idea-1-lets-avoid-this-question-and-turn-discrete-variables-into-continuous-ones" class="level3">
 <h3 class="anchored" data-anchor-id="idea-1-lets-avoid-this-question-and-turn-discrete-variables-into-continuous-ones">Idea 1: Let’s avoid this question and turn discrete variables into continuous ones</h3>
-<p>A simple version of this idea is to embed your vocabulary (think word embeddings) in a continuous space, do diffusion, apply a softmax to the output of the diffusion, and finally apply an argmax (<a href="https://arxiv.org/abs/2205.14217">Li et al.</a>).</p>
-<p>Another variation is to do a “relaxation” of the bits (e.g.&nbsp;category id=5 is converted to binary 1001 and then to continuous values 1.0,-1.0,-1.0,1.0), do diffusion, and then round back to the nearest discrete neighbor (<a href="https://arxiv.org/abs/2208.04202">Chen et al.</a>). Of course, there are (many) more complex ways to map discrete data to the continuous domain and then do diffusion on that “latent” representation but I won’t cover them here.</p>
+<p>A simple version of this idea is to embed your vocabulary (think word embeddings) in a continuous space, do “normal” diffusion in continuous space, and apply a softmax followed by an argmax (<a href="https://arxiv.org/abs/2205.14217">Li et al.</a>).</p>
+<p>Another variation is to do a “relaxation” of the bits (e.g.&nbsp;category id=5 is converted to binary 1001 and then to continuous values 1.0,-1.0,-1.0,1.0), do normal diffusion, and then round back to the nearest discrete neighbor (<a href="https://arxiv.org/abs/2208.04202">Chen et al.</a>). Of course, there are (many) more complex ways to map discrete data to the continuous domain and then do diffusion on that “latent” representation but I won’t cover them here.</p>
 <p>Some issues are:</p>
 <ul>
 <li>This is hacky and unprincipled</li>
@@ -273,7 +273,7 @@ q(x_t \mid x_{t-1}) = \mathrm{Cat}\!\left(
   (1 - \beta_t)\,x_{t-1} + \frac{\beta_t}{K}\,\mathbf{1}
 \right)
 \]</span></p>
-<p>Here <span class="math inline">\(K\)</span> is the vocab size and <span class="math inline">\(\frac{\beta_t}{K}\,\mathbf{1}\)</span> is uniform noise. Intuitively, this equation is saying at each step, resample your <span class="math inline">\(x\)</span> vector (this is a one-hot vector) from a categorical distribution where with some probability you stay the same <span class="math inline">\((1 - \beta_t)\)</span> and with probability <span class="math inline">\(\beta_t\)</span> you sample uniformly from other tokens. <span class="math inline">\(\beta_t\)</span> initially is 0 so that it’s highly likely that <span class="math inline">\(x_t\)</span> stays the same between steps but as the diffusion process progresses <span class="math inline">\(\beta_t\)</span> increases and it becomes increasingly likely that <span class="math inline">\(x_t\)</span> transitions to another token.</p>
+<p>Here <span class="math inline">\(K\)</span> is the vocab size and <span class="math inline">\(\frac{\beta_t}{K}\,\mathbf{1}\)</span> represents uniform noise. Intuitively, this equation is saying at each step, resample your <span class="math inline">\(x\)</span> vector (this is a one-hot vector) from a categorical distribution where with some probability <span class="math inline">\((1 - \beta_t)\)</span> you stay the same and with some probability you sample uniformly from other tokens. <span class="math inline">\(\beta_t\)</span> initially is 0 so that it’s highly likely that <span class="math inline">\(x_t\)</span> stays the same between steps but as the diffusion process progresses <span class="math inline">\(\beta_t\)</span> increases and it becomes increasingly likely that <span class="math inline">\(x_t\)</span> transitions to another token.</p>
 <div class="callout callout-style-default callout-note callout-titled" title="An example">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -295,7 +295,7 @@ q(x_t \mid x_{t-1}) = \mathrm{Cat}\!\left(
 </div>
 Hoogeboom et al.&nbsp;show that you can derive a training objective very similar to the DDPM training objective that is computationally tractable. Namely, they can compute <a href="#eq-q1" class="quarto-xref">Equation&nbsp;2</a> exactly and efficiently.
 <figure style="width: 800px; margin-left: auto; margin-right: auto; text-align: center;" class="figure">
-<img src="uniform_diffusion.png" alt="Discrete diffusion" width="1000" class="figure-img">
+<img src="uniform_diffusion.png" alt="Discrete diffusion" class="figure-img">
 <figcaption>
 <b>Figure 1:</b> Credit: Hoogeboom et al.&nbsp;2021
 </figcaption>
@@ -339,10 +339,11 @@ Hoogeboom et al.&nbsp;show that you can derive a training objective very similar
 <p>Once <code>cat</code> is unmasked, it cannot move to a different token.</p>
 </div>
 </div>
+<p>An interesting result with this approach is that the training target reduces down to weighted cross entropy loss between the model’s predictions given the noisy data and the clean data.</p>
 </section>
 <section id="idea-4-add-a-masking-token-but-let-the-model-correct-its-mistakes" class="level3">
 <h3 class="anchored" data-anchor-id="idea-4-add-a-masking-token-but-let-the-model-correct-its-mistakes">Idea 4: Add a masking token but let the model correct its mistakes</h3>
-<p>This is idea 3 plus an improved generation process. Namely, during inference we pick low confidence tokens and remask them. Training does not change. This idea was introduced in early 2025 by <a href="https://arxiv.org/abs/2503.00307">Wang et al.</a> (ReMDM) where they investigate several strategies for deciding how and when to remask tokens during generation. These ideas were scaled up a few months later using an 8 billion parameter model by <a href="https://arxiv.org/abs/2502.09992">Nie et al.</a>(Large Language Diffusion Models aka. LLADA). They demonstrate SoTA peformance on a number of language and reasoning tasks thus showing that discrete diffusion models can indeed rival autoregressive models.</p>
+<p>This is idea 3 plus an improved generation process. Namely, during inference we pick low confidence tokens and remask them. This change allows for the model to re-predict potentially incorrect unmasked tokens. Training does not change. This idea was introduced in early 2025 by <a href="https://arxiv.org/abs/2503.00307">Wang et al.</a> (ReMDM) where they investigate several strategies for deciding how and when to remask tokens during generation. These ideas were scaled up a few months later using an 8 billion parameter model by <a href="https://arxiv.org/abs/2502.09992">Nie et al.</a>(Large Language Diffusion Models aka. LLADA). They demonstrate SoTA peformance on a number of language and reasoning tasks thus showing that discrete diffusion models can indeed rival autoregressive models.</p>
 <div class="callout callout-style-default callout-note callout-titled" title="The reversal curse">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -369,13 +370,7 @@ GPT-4 correctly answers questions like the former 79% of the time, compared to 3
 </section>
 <section id="further-reading" class="level3">
 <h3 class="anchored" data-anchor-id="further-reading">Further reading</h3>
-<p>I glossed over a number of important topics. Further reading might include:</p>
-<ul>
-<li>details on noise schedules and training targets</li>
-<li>score based approaches to discrete diffusion such as <a href="https://arxiv.org/abs/2310.16834">this</a></li>
-<li>self conditioning</li>
-<li>other forward processes and auxiliary losses based on edit distance</li>
-</ul>
+<p>I glossed over a number of important topics. Further reading might include: - score based approaches to discrete diffusion such as <a href="https://arxiv.org/abs/2310.16834">this</a> - few step generation methods such as presented in <a href="https://arxiv.org/abs/2506.10892">this</a> - details on the training targets and noise schedules</p>
 </section>
 <section id="references" class="level3">
 <h3 class="anchored" data-anchor-id="references">References</h3>
